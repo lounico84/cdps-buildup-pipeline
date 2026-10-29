@@ -1,0 +1,21 @@
+# Daten (Impect-Daten sind lizenziert und gehören nicht ins Repo)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Zugangsdaten
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Lokale Editor-/Tool-Einstellungen
+.claude/settings.local.json
+
+# macOS
+.DS_Store
