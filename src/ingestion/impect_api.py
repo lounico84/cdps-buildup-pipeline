@@ -24,32 +24,37 @@ def connect() -> Impect:
     return api
 
 
-def find_iterations(api: Impect, search: str) -> pd.DataFrame:
-    """Saisons suchen, deren Wettbewerbsname den Suchbegriff enthält."""
+def get_iterations(api: Impect) -> pd.DataFrame:
+    """Alle Saisons, auf die wir Zugriff haben."""
     # Alle Saisons laden
     iterations = api.getIterations()
 
-    # Nach Wettbewerbsname filtern
-    found = iterations.competitionName.str.contains(search, case=False, na=False)
+    # Nach Wettbewerb und Saison sortieren
+    iterations = iterations.sort_values(["competitionName", "season"])
 
     # Nur die wichtigsten Spalten zurückgeben
-    return iterations[found][["id", "competitionName", "season", "dataVersion"]]
+    return iterations[["id", "competitionName", "season", "dataVersion"]].reset_index(drop=True)
 
 
-def find_matches(api: Impect, iteration: int, squad: str) -> pd.DataFrame:
-    """Verfügbare Spiele einer Mannschaft in einer Saison."""
+def get_matches(api: Impect, iteration: int) -> pd.DataFrame:
+    """Alle Spiele einer Saison, für die Impect schon Daten hat."""
     # Spielplan der ganzen Saison
     matches = api.getMatches(iteration=iteration)
 
-    # Spiele, in denen die Mannschaft Heim- oder Auswärtsteam ist
-    is_squad = (
-        matches.homeSquadName.str.contains(squad, case=False, na=False)
-        | matches.awaySquadName.str.contains(squad, case=False, na=False)
-    )
+    # Nur Spiele mit Daten, nach Datum sortiert
+    matches = matches[matches.available.eq(True)].sort_values("scheduledDate")
+    return matches[["id", "scheduledDate", "homeSquadName", "awaySquadName"]].reset_index(drop=True)
 
-    # Nur Spiele, für die Impect schon Daten hat, nach Datum sortiert
-    found = matches[is_squad & matches.available].sort_values("scheduledDate")
-    return found[["id", "scheduledDate", "homeSquadName", "awaySquadName"]]
+
+def get_squads(matches: pd.DataFrame) -> list[str]:
+    """Alle Mannschaften, die in den Spielen vorkommen (alphabetisch)."""
+    return sorted(set(matches.homeSquadName) | set(matches.awaySquadName))
+
+
+def matches_of_squad(matches: pd.DataFrame, squad: str) -> pd.DataFrame:
+    """Spiele einer Mannschaft (heim oder auswärts)."""
+    is_squad = (matches.homeSquadName == squad) | (matches.awaySquadName == squad)
+    return matches[is_squad].reset_index(drop=True)
 
 
 def load_events(api: Impect, match_id: int) -> pd.DataFrame:
