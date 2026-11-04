@@ -72,3 +72,18 @@ def load_events(api: Impect, match_id: int) -> pd.DataFrame:
     # Für den nächsten Lauf speichern
     events.to_parquet(path, index=False)
     return events
+
+
+def get_local_matches() -> pd.DataFrame:
+    """Alle Spiele, die schon in data/raw liegen (ohne Login nutzbar)."""
+    # Pro Datei nur die erste Zeile mit den Spielinfos lesen
+    columns = ["matchId", "dateTime", "homeSquadName", "awaySquadName"]
+    rows = [pd.read_parquet(path, columns=columns).iloc[0] for path in DATA_RAW.glob("events_*.parquet")]
+
+    # Nach Datum sortieren
+    return pd.DataFrame(rows, columns=columns).sort_values("dateTime").reset_index(drop=True)
+
+
+def read_local_events(match_id: int) -> pd.DataFrame:
+    """Events eines bereits geladenen Spiels aus data/raw lesen."""
+    return pd.read_parquet(DATA_RAW / f"events_{match_id}.parquet")
