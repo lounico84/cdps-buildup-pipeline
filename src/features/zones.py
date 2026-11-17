@@ -11,7 +11,7 @@ def add_zone_features(events: pd.DataFrame) -> pd.DataFrame:
     events["startZone"] = events.startPitchPosition.map(ZONES).astype("Int64")
     events["endZone"] = events.endPitchPosition.map(ZONES).astype("Int64")
 
-    # Aktion vom Team, das laut Impect den Ball hat
+    # Aktion vom Team, das den Ball hat
     events["inPossession"] = events.squadId == events.attackingSquadId
 
     # Distanz zum eigenen Tor in Metern (jedes Team spielt von links nach rechts)
