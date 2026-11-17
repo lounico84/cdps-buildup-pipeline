@@ -1,4 +1,5 @@
 impectPy>=2.9
+mplsoccer
 pandas
 pyarrow
 python-dotenv
