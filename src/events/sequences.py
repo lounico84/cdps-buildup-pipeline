@@ -12,10 +12,13 @@ def summarise_sequence(own: pd.DataFrame) -> dict:
     pressured = own[own.underPressure]
     first_pressure = pressured.iloc[0] if not pressured.empty else None
 
+    # Häufigste Phase der Aktionen (bei Gleichstand die, die zuerst vorkommt)
+    phase_counts = own.phase.value_counts(sort=False)
+    main_phase = phase_counts.idxmax() if not phase_counts.empty else pd.NA
+
     return {
         "squadName": first.attackingSquadName,
-        # Phase, mit der der Ballbesitz beginnt
-        "phase": first.phase,
+        "phase": main_phase,
         "startTime": first.gameTimeInSec,
         "durationSec": own.gameTimeInSec.iloc[-1] - first.gameTimeInSec,
         "actions": len(own),
