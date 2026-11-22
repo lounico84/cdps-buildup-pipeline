@@ -36,8 +36,8 @@ def summarise_sequence(own: pd.DataFrame) -> dict:
     # Gepflegtes Passspiel oder direkt? Pässe vor diesem Versuch
     passes_before = int((own.loc[: exit_.name - 1, "actionType"] == "PASS").sum()) if exit_ is not None else pd.NA
 
-    # Erster Versuch, den Ball von Zone 1/2 in Zone 3 zu bringen
-    entry3 = first_action(own, is_move & (own.startZone < 3) & (own.endZone == 3))
+    # Erster Versuch, den Ball von Zone 2 in Zone 3 zu bringen (lange Bälle aus Zone 1 zählen beim Ausgang)
+    entry3 = first_action(own, is_move & (own.startZone == 2) & (own.endZone == 3))
 
     return {
         "squadName": first.attackingSquadName,
@@ -59,10 +59,14 @@ def summarise_sequence(own: pd.DataFrame) -> dict:
         "exitCategory": exit_.actionCategory if exit_ is not None else pd.NA,
         "exitSide": exit_.startSide if exit_ is not None else pd.NA,
         "exitSuccess": exit_.result == "SUCCESS" if exit_ is not None else pd.NA,
+        # Geht der Versuch über Zone 2 hinweg direkt in Zone 3?
+        "exitDirectToZone3": exit_.endZone == 3 if exit_ is not None else pd.NA,
         "passesBeforeExit": passes_before,
-        # Wie und über welche Seite versucht das Team in Zone 3 zu kommen, und klappt es?
+        # Hatte das Team den Ball in Zone 2? (Grundlage für den Weg von Zone 2 in Zone 3)
+        "inZone2": bool((own.startZone == 2).any()),
+        # Wie und über welche Seite versucht das Team von Zone 2 in Zone 3 zu kommen, und klappt es?
         "zone3EntryCategory": entry3.actionCategory if entry3 is not None else pd.NA,
-        "zone3EntrySide": entry3.endSide if entry3 is not None else pd.NA,
+        "zone3EntrySide": entry3.startSide if entry3 is not None else pd.NA,
         "zone3EntrySuccess": entry3.result == "SUCCESS" if entry3 is not None else pd.NA,
     }
 

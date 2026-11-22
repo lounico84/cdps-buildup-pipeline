@@ -1,4 +1,4 @@
-"""Testet Schritt 4b: Wie und über welche Seite kommt ein Team aus Zone 1 raus und in Zone 3?
+"""Testet Schritt 4b: Wie und über welche Seite kommt ein Team aus Zone 1 raus und von Zone 2 in Zone 3?
 
 Start aus dem Projektordner: python -m notebooks.test_routen
 """
@@ -32,11 +32,11 @@ print(exit_by_side(sequences).to_string(index=False))
 print("\nRaus aus Zone 1: gepflegtes Passspiel oder direkt?")
 print(exit_by_patience(sequences).to_string(index=False))
 
-# Rein in Zone 3
-print("\nRein in Zone 3: über welche Seite?")
+# Von Zone 2 in Zone 3
+print("\nVon Zone 2 in Zone 3: über welche Seite?")
 print(zone3_by_side(sequences).to_string(index=False))
 
-print("\nRein in Zone 3: mit welcher Aktion?")
+print("\nVon Zone 2 in Zone 3: mit welcher Aktion?")
 print(zone3_by_action(sequences).to_string(index=False))
 
 # Beispiel nach Phase (Offensiv / Transition)

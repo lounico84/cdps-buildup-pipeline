@@ -66,9 +66,9 @@ print(zone1[zone1.exitCategory.isna()].groupby("squadName").size())
 print("\nVersuch raus aus Zone 1: Pässe davor (Anzahl Ballbesitze):")
 print(exits.groupby(["squadName", "passesBeforeExit"]).size().unstack(fill_value=0))
 
-# Versuch in Zone 3: Aktionstyp und Seite, mit Erfolg
+# Versuch von Zone 2 in Zone 3: Seite, mit Erfolg
 entries = sequences[sequences.zone3EntryCategory.notna()]
-print("\nVersuch in Zone 3 nach Seite (Anzahl und Erfolg in %):")
+print("\nVersuch von Zone 2 in Zone 3 nach Seite (Anzahl und Erfolg in %):")
 print(entries.groupby(["squadName", "zone3EntrySide"]).agg(
     versuche=("zone3EntrySuccess", "size"),
     erfolg=("zone3EntrySuccess", lambda s: round(s.astype(float).mean() * 100, 1)),
