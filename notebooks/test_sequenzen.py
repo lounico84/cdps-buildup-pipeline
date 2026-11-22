@@ -18,7 +18,7 @@ events = add_action_features(add_zone_features(clean_events(read_local_events(ma
 sequences = build_sequences(events)
 
 # Beispiel-Sequenzen (nur die wichtigsten Spalten, sonst wird es zu breit)
-columns = ["squadName", "phase", "startZone", "maxZone", "passes", "shot", "exitCategory", "exitSide", "zone3EntrySide", "lostInZone1"]
+columns = ["squadName", "phase", "startZone", "maxZone", "passes", "exitCategory", "exitSide", "passesBeforeExit", "zone3EntryCategory", "zone3EntrySide"]
 print(f"\n{len(sequences)} Ballbesitze. Die ersten 10:")
 print(sequences[columns].head(10).to_string(index=False))
 
@@ -47,17 +47,29 @@ print(by_phase)
 print("\nBallbesitze ab Zone 1: Zone des ersten Drucks (Anzahl):")
 print(zone1[zone1.pressured].groupby(["squadName", "firstPressureZone"]).size().unstack(fill_value=0))
 
-# Wie kommt der Ball aus Zone 1 raus? (Aktionstyp und Seite)
+# Erster Versuch raus aus Zone 1: wie oft welcher Aktionstyp, wie oft erfolgreich?
 exits = zone1[zone1.exitCategory.notna()]
-print("\nAusgang aus Zone 1: Aktionstyp (Anzahl):")
-print(exits.groupby(["squadName", "exitCategory"]).size().unstack(fill_value=0))
-print("\nAusgang aus Zone 1: Seite (Anzahl):")
-print(exits.groupby(["squadName", "exitSide"]).size().unstack(fill_value=0))
+print("\nVersuch raus aus Zone 1 nach Aktionstyp (Anzahl und Erfolg in %):")
+print(exits.groupby(["squadName", "exitCategory"]).agg(
+    versuche=("exitSuccess", "size"),
+    erfolg=("exitSuccess", lambda s: round(s.astype(float).mean() * 100, 1)),
+))
+print("\nVersuch raus aus Zone 1 nach Seite (Anzahl und Erfolg in %):")
+print(exits.groupby(["squadName", "exitSide"]).agg(
+    versuche=("exitSuccess", "size"),
+    erfolg=("exitSuccess", lambda s: round(s.astype(float).mean() * 100, 1)),
+))
+print("\nBallbesitze ab Zone 1 ganz ohne Versuch nach vorne:")
+print(zone1[zone1.exitCategory.isna()].groupby("squadName").size())
 
-# Über welche Seite kommt der Ball in Zone 3?
-print("\nEintritt in Zone 3: Seite (Anzahl):")
-print(sequences[sequences.zone3EntrySide.notna()].groupby(["squadName", "zone3EntrySide"]).size().unstack(fill_value=0))
+# Gepflegtes Passspiel oder direkt? Pässe in Zone 1 vor dem Versuch
+print("\nVersuch raus aus Zone 1: Pässe davor (Anzahl Ballbesitze):")
+print(exits.groupby(["squadName", "passesBeforeExit"]).size().unstack(fill_value=0))
 
-# Ballverluste in Zone 1 und wie oft der Gegner danach schnell abschliesst
-print("\nBallverluste in Zone 1 (Anzahl) und danach Gegner-Abschluss innerhalb 15 s:")
-print(sequences.groupby("squadName")[["lostInZone1", "opponentShotAfterLoss"]].sum())
+# Versuch in Zone 3: Aktionstyp und Seite, mit Erfolg
+entries = sequences[sequences.zone3EntryCategory.notna()]
+print("\nVersuch in Zone 3 nach Seite (Anzahl und Erfolg in %):")
+print(entries.groupby(["squadName", "zone3EntrySide"]).agg(
+    versuche=("zone3EntrySuccess", "size"),
+    erfolg=("zone3EntrySuccess", lambda s: round(s.astype(float).mean() * 100, 1)),
+))

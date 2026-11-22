@@ -12,7 +12,6 @@ COLUMNS = [
     "attackingSquadId",
     "attackingSquadName",
     "playerName",
-    "playerPosition",
     "phase",
     "actionType",
     "action",
@@ -21,12 +20,9 @@ COLUMNS = [
     "startAdjCoordinatesY",
     "startPitchPosition",
     "startLane",
-    "endAdjCoordinatesX",
-    "endAdjCoordinatesY",
     "endPitchPosition",
     "endLane",
     "passDistance",
-    "dribbleType",
     "pressure",
     "pressingPlayerName",
 ]
@@ -38,8 +34,6 @@ NUMERIC = [
     "pressure",
     "startAdjCoordinatesX",
     "startAdjCoordinatesY",
-    "endAdjCoordinatesX",
-    "endAdjCoordinatesY",
     "passDistance",
 ]
 

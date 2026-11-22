@@ -40,13 +40,6 @@ def lane(y: float) -> str:
     return "RIGHT_WING"
 
 
-def position(rng: np.random.Generator, x: float) -> str:
-    """Spielerposition passend zur Höhe auf dem Feld."""
-    if x < -20:
-        return str(rng.choice(["CENTRAL_DEFENDER", "DEFENSE_MIDFIELD", "LEFT_WINGBACK_DEFENDER", "RIGHT_WINGBACK_DEFENDER"]))
-    return str(rng.choice(["CENTRAL_MIDFIELD", "ATTACKING_MIDFIELD", "LEFT_WINGER", "RIGHT_WINGER", "CENTER_FORWARD"]))
-
-
 def random_pressure(rng: np.random.Generator, x: float) -> float:
     """Druck: je weiter vorne, desto häufiger."""
     # Wahrscheinlichkeit für Druck steigt von 30 % (eigenes Tor) auf 70 % (gegnerisches Tor)
@@ -103,7 +96,6 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
                 "attackingSquadId": squad_id,
                 "attackingSquadName": TEAMS[squad_id],
                 "playerName": f"{TEAMS[squad_id]} Spieler {int(rng.integers(1, 12))}",
-                "playerPosition": position(rng, x),
                 "phase": event_phase,
                 "startAdjCoordinatesX": round(x, 1),
                 "startAdjCoordinatesY": round(y, 1),
@@ -117,8 +109,6 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
             end = {
                 "gameTimeInSec": time + 1.5,
                 "result": "FAIL" if last else "SUCCESS",
-                "endAdjCoordinatesX": round(x_next, 1),
-                "endAdjCoordinatesY": round(y_next, 1),
                 "endPitchPosition": pitch_position(x_next),
                 "endLane": lane(y_next),
             }
@@ -126,7 +116,7 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
             # Ballannahme, danach Pass oder Dribbling
             rows.append(base | {"gameTimeInSec": time, "actionType": "RECEPTION", "action": "RECEPTION"})
             if kind == "dribble":
-                rows.append(base | end | {"actionType": "DRIBBLE", "action": "DRIBBLE", "dribbleType": "CARRY"})
+                rows.append(base | end | {"actionType": "DRIBBLE", "action": "DRIBBLE"})
             else:
                 action = "CHIPPED_PASS" if kind == "long" else "LOW_PASS"
                 rows.append(base | end | {"actionType": "PASS", "action": action, "passDistance": distance})
