@@ -1,9 +1,12 @@
 import os
+import time
 from getpass import getpass
 
 import pandas as pd
 from dotenv import load_dotenv
 from impectPy import Impect
+from impectPy.helpers import ForbiddenError, HTTPError
+from requests.exceptions import RequestException
 
 from src.config import DATA_RAW
 
@@ -65,9 +68,20 @@ def load_events(api: Impect, match_id: int) -> pd.DataFrame:
     if path.exists():
         return pd.read_parquet(path)
 
-    # Sonst von Impect holen
+    # Sonst von Impect holen, bei Serverfehlern bis zu 3 Versuche
     print(f"Lade Events für Spiel {match_id}...")
-    events = api.getEvents(matches=[match_id], include_kpis=False, include_set_pieces=False)
+    for attempt in range(1, 4):
+        try:
+            events = api.getEvents(matches=[match_id], include_kpis=False, include_set_pieces=False)
+            break
+        except ForbiddenError:
+            # Kein Zugriff: nochmals versuchen bringt nichts
+            raise
+        except (HTTPError, RequestException) as error:
+            if attempt == 3:
+                raise
+            print(f"  Fehler von Impect ({type(error).__name__}), neuer Versuch in {attempt * 10} s...")
+            time.sleep(attempt * 10)
 
     # Für den nächsten Lauf speichern
     events.to_parquet(path, index=False)
