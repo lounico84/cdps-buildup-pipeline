@@ -4,6 +4,7 @@ Start aus dem Projektordner: python -m notebooks.test_sequenzen
 """
 
 from src.events.sequences import build_sequences
+from src.features.actions import add_action_features
 from src.features.zones import add_zone_features
 from src.ingestion.impect_api import read_local_events
 from src.menu import choose_local_match
@@ -12,13 +13,14 @@ from src.preprocessing.clean import clean_events
 # Spiel aus data/raw wählen (kein Login nötig)
 match_id = choose_local_match()
 
-# Bereinigen, Zonen ergänzen, Sequenzen bilden
-events = add_zone_features(clean_events(read_local_events(match_id)))
+# Bereinigen, Zonen und Aktionstyp ergänzen, Sequenzen bilden
+events = add_action_features(add_zone_features(clean_events(read_local_events(match_id))))
 sequences = build_sequences(events)
 
-# Beispiel-Sequenzen
+# Beispiel-Sequenzen (nur die wichtigsten Spalten, sonst wird es zu breit)
+columns = ["squadName", "phase", "startZone", "maxZone", "passes", "shot", "exitCategory", "exitSide", "zone3EntrySide", "lostInZone1"]
 print(f"\n{len(sequences)} Ballbesitze. Die ersten 10:")
-print(sequences.drop(columns="matchId").head(10).to_string(index=False))
+print(sequences[columns].head(10).to_string(index=False))
 
 # Wie viele Ballbesitze pro Team und Startzone?
 print("\nBallbesitze pro Startzone:")
@@ -44,3 +46,18 @@ print(by_phase)
 # In welcher Zone kommt der erste Druck?
 print("\nBallbesitze ab Zone 1: Zone des ersten Drucks (Anzahl):")
 print(zone1[zone1.pressured].groupby(["squadName", "firstPressureZone"]).size().unstack(fill_value=0))
+
+# Wie kommt der Ball aus Zone 1 raus? (Aktionstyp und Seite)
+exits = zone1[zone1.exitCategory.notna()]
+print("\nAusgang aus Zone 1: Aktionstyp (Anzahl):")
+print(exits.groupby(["squadName", "exitCategory"]).size().unstack(fill_value=0))
+print("\nAusgang aus Zone 1: Seite (Anzahl):")
+print(exits.groupby(["squadName", "exitSide"]).size().unstack(fill_value=0))
+
+# Über welche Seite kommt der Ball in Zone 3?
+print("\nEintritt in Zone 3: Seite (Anzahl):")
+print(sequences[sequences.zone3EntrySide.notna()].groupby(["squadName", "zone3EntrySide"]).size().unstack(fill_value=0))
+
+# Ballverluste in Zone 1 und wie oft der Gegner danach schnell abschliesst
+print("\nBallverluste in Zone 1 (Anzahl) und danach Gegner-Abschluss innerhalb 15 s:")
+print(sequences.groupby("squadName")[["lostInZone1", "opponentShotAfterLoss"]].sum())

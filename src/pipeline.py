@@ -13,6 +13,7 @@ import pandas as pd
 
 from src.config import DATA_PROCESSED
 from src.events.sequences import build_sequences
+from src.features.actions import add_action_features
 from src.features.zones import add_zone_features
 from src.ingestion.impect_api import (
     connect, get_iterations, get_local_matches, get_matches, get_squads, load_events, matches_of_squad, read_local_events,
@@ -71,7 +72,7 @@ def main() -> None:
     squad, match_ids = choose_impect(api) if api else choose_local()
     print(f"\n{squad}: {len(match_ids)} Spiele")
 
-    # Jedes Spiel laden, bereinigen, Zonen ergänzen und Sequenzen bilden
+    # Jedes Spiel laden, bereinigen, Zonen und Aktionstyp ergänzen, Sequenzen bilden
     all_events, all_sequences, infos, failed = [], [], [], []
     for match_id in match_ids:
         # Spiel laden; schlägt es fehl, überspringen statt alles abzubrechen
@@ -82,7 +83,7 @@ def main() -> None:
             failed.append(match_id)
             continue
 
-        events = add_zone_features(clean_events(raw))
+        events = add_action_features(add_zone_features(clean_events(raw)))
         all_events.append(events)
         all_sequences.append(build_sequences(events))
         infos.append(match_info(raw, squad))
