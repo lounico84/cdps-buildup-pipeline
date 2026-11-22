@@ -55,10 +55,6 @@ col1.metric("Ballbesitze ab Zone 1", len(zone1))
 col2.metric("Zone 2 erreicht", f"{zone1.reachedZone2.mean():.0%}")
 col3.metric("Zone 3 erreicht", f"{zone1.reachedZone3.mean():.0%}")
 
-# Grafik: Offensiv gegen Transition
-st.subheader("Wie oft kommen wir nach vorne? Offensiv und Transition")
+# Grafiken (Titel stehen in der Grafik): Offensiv gegen Transition, dann links / Mitte / rechts
 st.pyplot(plot_buildup(sequences, squad))
-
-# Grafik: links / Mitte / rechts
-st.subheader("Über welche Seite kommen wir nach vorne?")
 st.pyplot(plot_sides(sequences, squad))

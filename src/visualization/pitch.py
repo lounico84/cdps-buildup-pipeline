@@ -1,13 +1,28 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import FancyArrow, FancyBboxPatch
 from mplsoccer import Pitch
 
 from src.config import PITCH_X_MIN
 from src.metrics.buildup import PHASE_LABELS
 
+# Farben: ruhige Fläche, dunkle Schrift, ein Blau für die Daten
+SURFACE = "#fcfcfb"
+INK = "#0b0b0b"
+INK_SECONDARY = "#52514e"
+MUTED = "#898781"
+PITCH_LINES = "#c3c2b7"
+BLUE = "#2a78d6"
+
+# Blau von hell nach dunkel für die Heatmap (wenig Druck -> viel Druck)
+BLUES = LinearSegmentedColormap.from_list("blues", [SURFACE, "#cde2fb", "#6da7ec", "#2a78d6", "#104281"])
+
+# Schrift: Systemschrift statt Standard von matplotlib
+plt.rcParams.update({"font.family": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"]})
+
 # Grenzen der Zonen auf der x-Achse (Feld in Drittel à 35 m)
 ZONE_EDGES = [-52.5, -17.5, 17.5, 52.5]
-ZONE_COLORS = ["#dbe9f6", "#9ecae1", "#4292c6"]
 
 # Seiten auf der y-Achse (links = oben, aus Sicht des Teams mit Ball): Grenzen und Mitte
 SIDE_BANDS = {"links": (9.15, 34), "Mitte": (-9.15, 9.15), "rechts": (-34, -9.15)}
@@ -16,41 +31,69 @@ SIDE_CENTERS = {"links": 21.6, "Mitte": 0, "rechts": -21.6}
 
 def draw_pitch(ax: plt.Axes) -> Pitch:
     """Impect-Spielfeld zeichnen (passt ohne Umrechnung zu den adjCoordinates)."""
-    # line_zorder=2: Feldlinien über Heatmap und Zonenfarben
-    pitch = Pitch(pitch_type="impect", line_color="#555555", pitch_color="white", line_zorder=2)
+    pitch = Pitch(pitch_type="impect", pitch_color=SURFACE, line_color=PITCH_LINES, linewidth=1, line_zorder=2)
     pitch.draw(ax=ax)
     return pitch
 
 
+def new_figure(ncols: int, title: str, subtitle: str, height: float = 6.4, top: float = 0.78) -> tuple[plt.Figure, list[plt.Axes]]:
+    """Leere Grafik mit Titel und Untertitel oben links."""
+    fig, axes = plt.subplots(1, ncols, figsize=(8 * ncols, height), facecolor=SURFACE)
+    axes = list(axes) if ncols > 1 else [axes]
+    fig.text(0.02, 0.97, title, fontsize=17, fontweight="bold", color=INK, va="top")
+    fig.text(0.02, 0.97 - 0.38 / height, subtitle, fontsize=11, color=INK_SECONDARY, va="top")
+    fig.subplots_adjust(top=top, bottom=0.06, left=0.02, right=0.98, wspace=0.08)
+    return fig, axes
+
+
+def panel_title(ax: plt.Axes, title: str, subtitle: str) -> None:
+    """Titel über einem Spielfeld, darunter eine Zeile mit Zusatzinfo."""
+    ax.set_title(title, loc="left", fontsize=13, fontweight="bold", color=INK, pad=24)
+    ax.text(-52.5, 36, subtitle, fontsize=10, color=INK_SECONDARY, va="bottom")
+
+
+def draw_zone_lines(ax: plt.Axes) -> None:
+    """Zonengrenzen als feine Linien, Zonen unter dem Feld beschriftet."""
+    for x in ZONE_EDGES[1:3]:
+        ax.plot([x, x], [-34, 34], color=BLUE, alpha=0.35, lw=1, zorder=2)
+    for zone in range(3):
+        center = (ZONE_EDGES[zone] + ZONE_EDGES[zone + 1]) / 2
+        ax.text(center, -36.5, f"Zone {zone + 1}", ha="center", va="top", fontsize=10, color=MUTED)
+
+
 def plot_buildup(sequences: pd.DataFrame, squad: str) -> plt.Figure:
-    """Spielaufbau ab Zone 1: Anteil, der Zone 2 und Zone 3 erreicht, für Offensiv und Transition."""
+    """Spielaufbau ab Zone 1: Wie viele Ballbesitze erreichen Zone 2 und Zone 3? Offensiv und Transition."""
     # Ballbesitze des Teams, die in Zone 1 beginnen
     zone1 = sequences[(sequences.squadName == squad) & (sequences.startZone == 1)]
 
-    # Zwei Felder nebeneinander: Offensiv und Transition
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, axes = new_figure(2, "Wie weit kommen wir von Zone 1 aus?",
+                           f"{squad} · Anteil der Ballbesitze ab Zone 1, die Zone 2 und Zone 3 erreichen")
+
     for ax, phase in zip(axes, ["IN_POSSESSION", "ATTACKING_TRANSITION"]):
         draw_pitch(ax)
+        draw_zone_lines(ax)
         part = zone1[zone1.phase == phase]
-
-        # Zonen farbig hinterlegen (nur innerhalb des Spielfelds)
-        for zone, color in enumerate(ZONE_COLORS):
-            ax.fill_between([ZONE_EDGES[zone], ZONE_EDGES[zone + 1]], -34, 34, color=color, alpha=0.5, zorder=1)
-            ax.text((ZONE_EDGES[zone] + ZONE_EDGES[zone + 1]) / 2, 28, f"Zone {zone + 1}", ha="center", fontsize=11, zorder=3)
-
-        # Titel mit Anzahl Ballbesitze
-        ax.set_title(f"{PHASE_LABELS[phase]}: {len(part)} Ballbesitze ab Zone 1", fontsize=13)
+        panel_title(ax, PHASE_LABELS[phase], f"{len(part)} Ballbesitze ab Zone 1")
         if part.empty:
+            ax.text(0, 0, "Keine Ballbesitze", ha="center", va="center", fontsize=12, color=MUTED)
             continue
 
-        # Pfeile Zone 1 -> Zone 2 und Zone 1 -> Zone 3 mit Prozent
-        for y, target, share in [(8, 2, part.reachedZone2.mean()), (-8, 3, part.reachedZone3.mean())]:
-            ax.annotate("", xy=(ZONE_EDGES[target] - 15, y), xytext=(-40, y), zorder=3,
-                        arrowprops={"arrowstyle": "-|>", "lw": 3, "color": "#08306b"})
-            ax.text(ZONE_EDGES[target] - 13, y, f"{share:.0%}", va="center", fontsize=14, fontweight="bold", zorder=3,
-                    bbox={"facecolor": "white", "edgecolor": "none", "pad": 2})
+        # Pro Zone ein Balken, der von unten wächst: Höhe = Anteil der Ballbesitze, die diese Zone erreichen
+        shares = [1.0, part.reachedZone2.mean(), part.reachedZone3.mean()]
+        captions = ["starten hier", "erreichen Zone 2", "erreichen Zone 3"]
+        baseline = -31
+        for zone, (share, caption) in enumerate(zip(shares, captions)):
+            left, right = ZONE_EDGES[zone] + 4, ZONE_EDGES[zone + 1] - 4
+            height = max(48 * share, 0.5)
+            ax.add_patch(FancyBboxPatch((left, baseline), right - left, height,
+                                        boxstyle="round,pad=0,rounding_size=1.2", fc=BLUE, ec="none", zorder=3))
 
-    fig.suptitle(f"{squad}: Wie oft kommen wir von Zone 1 nach vorne?", fontsize=15)
+            # Zahl und Beschriftung über dem Balken
+            center, top = (left + right) / 2, baseline + height
+            ax.text(center, top + 5, f"{share:.0%}", ha="center", va="bottom", fontsize=20,
+                    fontweight="bold", color=INK, zorder=4)
+            ax.text(center, top + 1.2, caption, ha="center", va="bottom", fontsize=10, color=INK_SECONDARY, zorder=4)
+
     return fig
 
 
@@ -59,16 +102,11 @@ def draw_side_arrows(
     direct_col: str | None = None,
 ) -> None:
     """Ein Pfeil pro Seite (Seite = wo der Versuch startet): Dicke = Anteil der Versuche, Text = Anzahl, Erfolg, Zone 3."""
-    # Seiten leicht hinterlegen und beschriften
+    # Seiten mit feinen Linien trennen und beschriften
+    for y in (9.15, -9.15):
+        ax.plot([-52.5, 52.5], [y, y], color=BLUE, alpha=0.2, lw=1, zorder=2)
     for side, (low, high) in SIDE_BANDS.items():
-        ax.fill_between([-52.5, 52.5], low, high, color="#f0f0f0" if side == "Mitte" else "#fafafa", zorder=1)
-        ax.text(-51, high - 2, side, va="top", fontsize=10, color="#555555", zorder=3)
-
-    # Zonengrenzen gestrichelt, Zonen unten beschriftet
-    for x in ZONE_EDGES[1:3]:
-        ax.plot([x, x], [-34, 34], color="#4292c6", lw=1.5, ls="--", zorder=2)
-    for zone in range(3):
-        ax.text((ZONE_EDGES[zone] + ZONE_EDGES[zone + 1]) / 2, -37, f"Zone {zone + 1}", ha="center", va="top", fontsize=10)
+        ax.text(-51, high - 1.5, side.capitalize(), va="top", fontsize=10, color=MUTED, zorder=4)
 
     # Nur Ballbesitze mit Versuch
     attempts = data[data[side_col].notna()]
@@ -79,22 +117,26 @@ def draw_side_arrows(
 
         # Pfeil: je mehr Versuche über diese Seite, desto dicker
         share = len(part) / len(attempts)
-        ax.annotate("", xy=(x_end, y), xytext=(x_start, y), zorder=3,
-                    arrowprops={"arrowstyle": "-|>", "lw": 2 + 18 * share, "color": "#08306b", "mutation_scale": 25})
+        width = 0.8 + 6 * share
+        ax.add_patch(FancyArrow(x_start, y, x_end - x_start, 0, width=width, head_width=width + 3, head_length=3.5,
+                                length_includes_head=True, fc=BLUE, ec="none", zorder=3))
 
-        # Text: Anzahl, (direkt in Zone 3), Erfolg des Versuchs, danach Zone 3
+        # Text rechts vom Pfeil: Anzahl gross, Details klein
         success = part[success_col].astype("boolean").mean()
-        lines = [f"{len(part)} Versuche ({share:.0%})"]
+        details = []
         if direct_col:
-            lines.append(f"{int(part[direct_col].astype('boolean').sum())} davon direkt in Zone 3")
-        lines += [f"{success:.0%} klappen", f"{part.reachedZone3.mean():.0%} danach Zone 3"]
-        text = "\n".join(lines)
-        ax.text(x_end + 2, y, text, va="center", fontsize=10, zorder=3,
-                bbox={"facecolor": "white", "edgecolor": "#cccccc", "pad": 3})
+            details.append(f"{int(part[direct_col].astype('boolean').sum())} direkt in Zone 3")
+        details += [f"{success:.0%} klappen", f"{part.reachedZone3.mean():.0%} danach in Zone 3"]
+
+        backing = {"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.9, "pad": 1.5}
+        ax.text(x_end + 2, y + 2.2, f"{len(part)} Versuche · {share:.0%}", va="bottom", fontsize=11,
+                fontweight="bold", color=INK, zorder=4, bbox=backing)
+        ax.text(x_end + 2, y + 1.6, "\n".join(details), va="top", fontsize=9.5, color=INK_SECONDARY,
+                linespacing=1.4, zorder=4, bbox=backing)
 
 
 def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
-    """Links / Mitte / rechts: Über welche Seite raus aus Zone 1 und rein in Zone 3, und wie erfolgreich?"""
+    """Links / Mitte / rechts: Über welche Seite raus aus Zone 1 und von Zone 2 in Zone 3, und wie erfolgreich?"""
     own = sequences[sequences.squadName == squad]
 
     # Zone 1 -> weiter: Ballbesitze, die in Zone 1 beginnen
@@ -103,20 +145,21 @@ def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     # Zone 2 -> 3: Ballbesitze, in denen das Team den Ball in Zone 2 hatte
     in_zone2 = own[own.inZone2]
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig, axes = new_figure(2, "Über welche Seite kommen wir nach vorne?",
+                           f"{squad} · Pfeildicke = Anteil der Versuche · Seite = wo der Versuch startet · eigenes Tor links")
     panels = [
-        (axes[0], zone1, "exitSide", "exitSuccess", "exitDirectToZone3", -45, -15, "Raus aus Zone 1", "Kein Versuch nach vorne"),
-        (axes[1], in_zone2, "zone3EntrySide", "zone3EntrySuccess", None, -5, 22, "Von Zone 2 in Zone 3", "Kein Versuch in Zone 3"),
+        (axes[0], zone1, "exitSide", "exitSuccess", "exitDirectToZone3", -46, -21, "Raus aus Zone 1", "ohne Versuch nach vorne"),
+        (axes[1], in_zone2, "zone3EntrySide", "zone3EntrySuccess", None, -4, 21, "Von Zone 2 in Zone 3", "ohne Versuch in Zone 3"),
     ]
     for ax, data, side_col, success_col, direct_col, x_start, x_end, title, missing in panels:
         draw_pitch(ax)
+        draw_zone_lines(ax)
         draw_side_arrows(ax, data, side_col, success_col, x_start, x_end, direct_col)
 
-        # Titel mit Anzahl Ballbesitze ohne Versuch
+        # Titel mit Anzahl Ballbesitze und wie viele davon ohne Versuch
         no_attempt = data[side_col].isna().sum()
-        ax.set_title(f"{title} ({len(data)} Ballbesitze, {no_attempt} davon: {missing})", fontsize=12)
+        panel_title(ax, title, f"{len(data)} Ballbesitze · {no_attempt} {missing}")
 
-    fig.suptitle(f"{squad}: Über welche Seite kommen wir nach vorne? (eigenes Tor links)", fontsize=15)
     return fig
 
 
@@ -125,19 +168,26 @@ def plot_pressure_map(events: pd.DataFrame, squad: str) -> plt.Figure:
     # Eigene Aktionen unter Druck
     pressured = events[(events.squadName == squad) & events.underPressure]
 
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, (ax,) = new_figure(1, "Wo kommen wir unter Druck?",
+                            f"{squad} · {len(pressured)} Aktionen unter Druck · Anteil pro Feld · eigenes Tor links",
+                            height=6.6, top=0.85)
+    fig.set_size_inches(9, 6.6)
     pitch = draw_pitch(ax)
 
-    # Anteil der Druck-Aktionen pro Feld (6 x 4 Felder)
-    stats = pitch.bin_statistic(pressured.startAdjCoordinatesX, pressured.startAdjCoordinatesY,
-                                bins=(6, 4), normalize=True)
-    pitch.heatmap(stats, ax=ax, cmap="Reds", edgecolor="white", alpha=0.85)
-    pitch.label_heatmap(stats, ax=ax, str_format="{:.0%}", exclude_zeros=True, fontsize=12, ha="center", va="center")
+    # Anteil der Druck-Aktionen pro Feld (6 x 4 Felder), Lücke zwischen den Feldern in Flächenfarbe
+    stats = pitch.bin_statistic(pressured.startAdjCoordinatesX, pressured.startAdjCoordinatesY, bins=(6, 4), normalize=True)
+    pitch.heatmap(stats, ax=ax, cmap=BLUES, edgecolor=SURFACE, linewidth=2, zorder=1)
 
-    # Median-Druckhöhe als Linie (nur auf dem Spielfeld), Beschriftung unter dem Feld
+    # Werte in die Felder schreiben: weiss auf dunklem, schwarz auf hellem Blau
+    highest = stats["statistic"].max()
+    for value, x, y in zip(stats["statistic"].ravel(), stats["cx"].ravel(), stats["cy"].ravel()):
+        if value > 0:
+            color = "white" if value > 0.55 * highest else INK
+            ax.text(x, y, f"{value:.0%}", ha="center", va="center", fontsize=12, color=color, zorder=4)
+
+    # Median-Druckhöhe als Linie, Beschriftung unter dem Feld
     median_x = pressured.metresFromOwnGoal.median() + PITCH_X_MIN
-    ax.plot([median_x, median_x], [-34, 34], color="black", lw=2, ls="--", zorder=3)
-    ax.text(median_x, -37, f"Median: {median_x - PITCH_X_MIN:.0f} m vom eigenen Tor", ha="center", va="top", fontsize=11)
-
-    ax.set_title(f"{squad}: Wo kommen wir unter Druck? ({len(pressured)} Aktionen, eigenes Tor links)", fontsize=13)
+    ax.plot([median_x, median_x], [-34, 34], color=INK, lw=2, zorder=3)
+    ax.text(median_x, -36.5, f"Median: {median_x - PITCH_X_MIN:.0f} m vom eigenen Tor", ha="center", va="top",
+            fontsize=11, color=INK)
     return fig
