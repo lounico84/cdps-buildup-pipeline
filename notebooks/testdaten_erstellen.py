@@ -27,6 +27,26 @@ def pitch_position(x: float) -> str:
     return "OPPONENT_BOX"
 
 
+def lane(y: float) -> str:
+    """Impect-Bahn aus der y-Koordinate (positiv = links aus Sicht des Angreifers)."""
+    if y > 20.2:
+        return "LEFT_WING"
+    if y > 9.15:
+        return "LEFT_HALF_SPACE"
+    if y >= -9.15:
+        return "CENTER"
+    if y >= -20.2:
+        return "RIGHT_HALF_SPACE"
+    return "RIGHT_WING"
+
+
+def position(rng: np.random.Generator, x: float) -> str:
+    """Spielerposition passend zur Höhe auf dem Feld."""
+    if x < -20:
+        return str(rng.choice(["CENTRAL_DEFENDER", "DEFENSE_MIDFIELD", "LEFT_WINGBACK_DEFENDER", "RIGHT_WINGBACK_DEFENDER"]))
+    return str(rng.choice(["CENTRAL_MIDFIELD", "ATTACKING_MIDFIELD", "LEFT_WINGER", "RIGHT_WINGER", "CENTER_FORWARD"]))
+
+
 def random_pressure(rng: np.random.Generator, x: float) -> float:
     """Druck: je weiter vorne, desto häufiger."""
     # Wahrscheinlichkeit für Druck steigt von 30 % (eigenes Tor) auf 70 % (gegnerisches Tor)
@@ -59,9 +79,14 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
             event_phase = "IN_POSSESSION" if phase == "ATTACKING_TRANSITION" and number >= 2 else phase
             pressure = random_pressure(rng, x)
 
-            # Ziel des Passes: meistens nach vorne
-            x_next = float(np.clip(x + rng.normal(7, 10), -52, 52))
-            y_next = float(np.clip(y + rng.normal(0, 12), -33, 33))
+            # Art der Aktion: meistens Flachpass, manchmal langer Ball oder Dribbling
+            kind = rng.choice(["pass", "long", "dribble"], p=[0.65, 0.15, 0.2])
+
+            # Ziel der Aktion: meistens nach vorne, lange Bälle weit, Dribblings kurz
+            forward = {"pass": rng.normal(7, 10), "long": rng.normal(32, 8), "dribble": rng.normal(6, 4)}[kind]
+            x_next = float(np.clip(x + forward, -52, 52))
+            y_next = float(np.clip(y + rng.normal(0, 12 if kind != "dribble" else 4), -33, 33))
+            distance = round(float(np.hypot(x_next - x, y_next - y)), 1)
 
             # Letzter Pass geht verloren, die anderen kommen an
             last = number == n_passes - 1
@@ -78,19 +103,33 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
                 "attackingSquadId": squad_id,
                 "attackingSquadName": TEAMS[squad_id],
                 "playerName": f"{TEAMS[squad_id]} Spieler {int(rng.integers(1, 12))}",
+                "playerPosition": position(rng, x),
                 "phase": event_phase,
                 "startAdjCoordinatesX": round(x, 1),
                 "startAdjCoordinatesY": round(y, 1),
                 "startPitchPosition": pitch_position(x),
+                "startLane": lane(y),
                 "pressure": pressure,
                 "pressingPlayerName": "Gegenspieler" if pressure >= 50 else None,
             }
 
-            # Ballannahme, danach Pass
-            rows.append(base | {"gameTimeInSec": time, "actionType": "RECEPTION", "action": "RECEPTION",
-                                "result": None, "endPitchPosition": None})
-            rows.append(base | {"gameTimeInSec": time + 1.5, "actionType": "PASS", "action": "LOW_PASS",
-                                "result": "FAIL" if last else "SUCCESS", "endPitchPosition": pitch_position(x_next)})
+            # Ziel der Aktion (Ende von Pass oder Dribbling)
+            end = {
+                "gameTimeInSec": time + 1.5,
+                "result": "FAIL" if last else "SUCCESS",
+                "endAdjCoordinatesX": round(x_next, 1),
+                "endAdjCoordinatesY": round(y_next, 1),
+                "endPitchPosition": pitch_position(x_next),
+                "endLane": lane(y_next),
+            }
+
+            # Ballannahme, danach Pass oder Dribbling
+            rows.append(base | {"gameTimeInSec": time, "actionType": "RECEPTION", "action": "RECEPTION"})
+            if kind == "dribble":
+                rows.append(base | end | {"actionType": "DRIBBLE", "action": "DRIBBLE", "dribbleType": "CARRY"})
+            else:
+                action = "CHIPPED_PASS" if kind == "long" else "LOW_PASS"
+                rows.append(base | end | {"actionType": "PASS", "action": action, "passDistance": distance})
 
             x, y = x_next, y_next
             time += 3.0
