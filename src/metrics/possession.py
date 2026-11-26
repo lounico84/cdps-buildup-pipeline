@@ -12,10 +12,15 @@ def compare_definitions(
     squad: str,
     passes: tuple[int, ...] = (0, 1, 2, 3),
     seconds: tuple[float | None, ...] = (None, 5, 10),
+    stats: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Wie stark hängt das Ergebnis von der Definition ab? Ballbesitze ab Zone 1 für jede Variante."""
+    """Wie stark hängt das Ergebnis von der Definition ab? Ballbesitze ab Zone 1 für jede Variante.
+
+    stats: Ergebnis von control_stats() (optional, z. B. im Dashboard zwischengespeichert).
+    """
     # Pass-Serien und Zeiten nur einmal berechnen, dann jede Variante schnell vergleichen
-    stats = control_stats(events)
+    if stats is None:
+        stats = control_stats(events)
 
     rows = []
     for min_seconds in seconds:
@@ -25,7 +30,7 @@ def compare_definitions(
             zone1 = result[(result.squadName == squad) & (result.startZone == 1)]
             rows.append({
                 "Pässe": min_passes,
-                "Sekunden": "-" if min_seconds is None else min_seconds,
+                "Sekunden": "keine" if min_seconds is None else str(min_seconds),
                 "Ballbesitze ab Zone 1": len(zone1),
                 "Zone 2 kontrolliert (%)": round(zone1.zone2Controlled.mean() * 100, 1),
                 "Zone 3 kontrolliert (%)": round(zone1.zone3Controlled.mean() * 100, 1),

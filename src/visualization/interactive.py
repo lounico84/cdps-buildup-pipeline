@@ -292,8 +292,9 @@ def plot_pass_light(light: pd.DataFrame, squad: str) -> go.Figure:
         margin=dict(l=10, r=10, t=140, b=10),
         xaxis=dict(tickvals=list(range(len(columns))), ticktext=columns, side="top", showgrid=False, zeroline=False,
                    range=[-0.5, len(columns) - 0.5]),
+        # automargin: Platz für die Zeilenbeschriftung, auch in schmalen Fenstern
         yaxis=dict(tickvals=list(range(len(rows))), ticktext=rows, showgrid=False, zeroline=False,
-                   range=[-0.5, len(rows) - 0.5]),
+                   range=[-0.5, len(rows) - 0.5], automargin=True),
         title=dict(text=f"<b>Ampel: Welche Pässe kommen besser an?</b><br><span style='font-size:13px;color:{INK_SECONDARY}'>"
                         f"{squad} | Vergleich mit Pässen aus gleicher Zone in gleiche Richtung<br>"
                         f"▲ signifikant besser | ● kein klarer Unterschied | ▼ signifikant schlechter | ○ zu wenige Pässe</span>",
