@@ -67,9 +67,12 @@ what = right.radio("Was zählt?", ["Alle Ballaktionen", "Nur Pässe"], horizonta
 heatmap = plot_activity_heatmap(events, squad, opacity=opacity, passes_only=what == "Nur Pässe")
 st.plotly_chart(heatmap, width="stretch", theme=None)
 
-# Alle Pässe als Pfeile (ohne Filter, damit man die ganze Menge sieht), Regler für die Deckkraft
-pass_opacity = st.slider("Deckkraft der Passpfeile", min_value=0.1, max_value=1.0, value=0.5, step=0.05)
-arrows = plot_pass_arrows(own_passes(events, squad), squad, opponent_name(events, squad), opacity=pass_opacity)
+# Passpfeile: Farbe = Ergebnis, Richtung über den Filter (Standard: alle Pässe), Regler für die Deckkraft
+left, right = st.columns(2)
+directions = left.multiselect("Passrichtung", ["vorwärts", "seitlich", "rückwärts"], default=["vorwärts", "seitlich", "rückwärts"])
+pass_opacity = right.slider("Deckkraft der Passpfeile", min_value=0.1, max_value=1.0, value=0.5, step=0.05)
+passes = own_passes(events, squad, directions=directions)
+arrows = plot_pass_arrows(passes, squad, opponent_name(events, squad), opacity=pass_opacity)
 st.plotly_chart(arrows, width="stretch", theme=None)
 
 # Grafiken (Titel stehen in der Grafik): Offensiv gegen Transition, dann links / Mitte / rechts

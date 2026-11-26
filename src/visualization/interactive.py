@@ -141,8 +141,11 @@ def plot_activity_heatmap(events: pd.DataFrame, squad: str, opacity: float = 0.8
     return fig
 
 
-# Farben für die Passrichtung (drei gut unterscheidbare Farben, auch bei Farbsehschwäche)
-DIRECTION_COLORS = {"vorwärts": "#2a78d6", "seitlich": "#eb6834", "rückwärts": "#1baf7a"}
+# Passpfeile: Farbe, Linie und Zeichen am Ziel zeigen das Ergebnis (nicht nur die Farbe)
+RESULT_STYLE = {
+    "angekommen": dict(color="#2a78d6", dash="solid", symbol="circle"),
+    "misslungen": dict(color="#d03b3b", dash="dot", symbol="x"),
+}
 
 # Blau von hell nach dunkel für die Häufigkeit der Passströme
 BLUES = [[0, "#cde2fb"], [0.5, "#5598e7"], [1, "#0d366b"]]
@@ -160,14 +163,16 @@ def minute(seconds: float) -> int:
 
 
 def own_passes(events: pd.DataFrame, squad: str, zones: list[int] | None = None, phases: list[str] | None = None,
-               result: str = "Alle") -> pd.DataFrame:
-    """Pässe des Teams mit Ball, gefiltert nach Startzone, Phase und Ergebnis."""
+               result: str = "Alle", directions: list[str] | None = None) -> pd.DataFrame:
+    """Pässe des Teams mit Ball, gefiltert nach Startzone, Phase, Ergebnis und Richtung."""
     passes = events[(events.squadName == squad) & events.inPossession & events.passDirection.notna()
                     & events.endAdjCoordinatesX.notna()]
     if zones:
         passes = passes[passes.startZone.isin(zones)]
     if phases:
         passes = passes[passes.phase.isin(phases)]
+    if directions:
+        passes = passes[passes.passDirection.isin(directions)]
     if result == "Erfolgreich":
         passes = passes[passes.passSuccess.astype(bool)]
     elif result == "Misslungen":
@@ -176,36 +181,38 @@ def own_passes(events: pd.DataFrame, squad: str, zones: list[int] | None = None,
 
 
 def plot_pass_arrows(passes: pd.DataFrame, squad: str, opponent: str = "Gegner", opacity: float = 0.6) -> go.Figure:
-    """Jeder Pass als Linie vom Start zum Ziel, Farbe = Richtung, Punkt am Ziel (Tooltip mit Details)."""
+    """Jeder Pass als Linie vom Start zum Ziel. Ergebnis gut erkennbar: blau durchgezogen mit Punkt = angekommen,
+    rot gepunktet mit Kreuz = misslungen. Die Richtung wird im Dashboard über einen Filter gewählt."""
     fig = pitch_figure()
+    success = passes.passSuccess.astype(bool)
 
-    for direction, color in DIRECTION_COLORS.items():
-        part = passes[passes.passDirection == direction]
+    for label, style in RESULT_STYLE.items():
+        part = passes[success] if label == "angekommen" else passes[~success]
         if part.empty:
             continue
 
-        # Alle Linien einer Richtung in einer Spur: Start, Ziel, Lücke (None), nächster Pass ...
+        # Alle Linien in einer Spur: Start, Ziel, Lücke (NaN), nächster Pass ...
         x = np.column_stack([part.startAdjCoordinatesX, part.endAdjCoordinatesX, np.full(len(part), np.nan)]).ravel()
         y = np.column_stack([part.startAdjCoordinatesY, part.endAdjCoordinatesY, np.full(len(part), np.nan)]).ravel()
-        fig.add_trace(go.Scatter(x=x, y=y, mode="lines", line=dict(color=color, width=1.5), opacity=opacity,
-                                 hoverinfo="skip", legendgroup=direction, showlegend=False))
+        fig.add_trace(go.Scatter(x=x, y=y, mode="lines", line=dict(color=style["color"], width=1.5, dash=style["dash"]),
+                                 opacity=opacity, hoverinfo="skip", legendgroup=label, showlegend=False))
 
-        # Punkt am Ziel: offen = misslungen, gefüllt = angekommen
-        success = part.passSuccess.astype(bool)
-        hover = [f"{p}<br>{d} | {'angekommen' if ok else 'misslungen'}<br>Minute {minute(t)}"
-                 for p, d, ok, t in zip(part.playerName, part.passDirection, success, part.gameTimeInSec)]
+        # Zeichen am Ziel: Punkt = angekommen, Kreuz = misslungen (Tooltip mit Details)
+        hover = [f"{p}<br>{d} | {label}<br>Minute {minute(t)}"
+                 for p, d, t in zip(part.playerName, part.passDirection, part.gameTimeInSec)]
         fig.add_trace(go.Scatter(
-            x=part.endAdjCoordinatesX, y=part.endAdjCoordinatesY, mode="markers", name=f"{direction} ({len(part)})",
-            marker=dict(color=np.where(success, color, SURFACE), size=7, line=dict(color=color, width=1.5)),
-            opacity=min(1.0, opacity + 0.3), text=hover, hovertemplate="%{text}<extra></extra>", legendgroup=direction,
+            x=part.endAdjCoordinatesX, y=part.endAdjCoordinatesY, mode="markers", name=f"{label} ({len(part)})",
+            marker=dict(color=style["color"], size=8, symbol=style["symbol"], line=dict(color=SURFACE, width=1)),
+            opacity=min(1.0, opacity + 0.3), text=hover, hovertemplate="%{text}<extra></extra>", legendgroup=label,
         ))
 
     add_teams(fig, squad, opponent)
     fig.update_layout(
         title=dict(text=f"<b>Wohin spielen wir die Pässe?</b><br><span style='font-size:13px;color:{INK_SECONDARY}'>"
-                        f"{squad} | {len(passes)} Pässe | Farbe = Richtung | Spielrichtung →<br>"
-                        f"Punkt am Ziel: gefüllt = angekommen, offen = misslungen</span>", x=0.01, xanchor="left", font=dict(size=18)),
-        legend=dict(orientation="h", y=-0.02, x=0.5, xanchor="center", title_text="Richtung (anklicken zum Ein-/Ausblenden): "),
+                        f"{squad} | {len(passes)} Pässe | {success.mean():.0%} angekommen | Spielrichtung →<br>"
+                        f"Blau mit Punkt = angekommen | Rot gepunktet mit Kreuz = misslungen</span>",
+                   x=0.01, xanchor="left", font=dict(size=18)),
+        legend=dict(orientation="h", y=-0.02, x=0.5, xanchor="center", title_text="Anklicken zum Ein-/Ausblenden: "),
     )
     return fig
 
