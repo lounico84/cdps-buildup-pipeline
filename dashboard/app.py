@@ -14,8 +14,8 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config import DATA_PROCESSED
-from src.visualization.interactive import plot_activity_heatmap
-from src.visualization.pitch import plot_buildup, plot_sides
+from src.visualization.interactive import own_passes, plot_activity_heatmap, plot_pass_arrows
+from src.visualization.pitch import opponent_name, plot_buildup, plot_sides
 
 st.set_page_config(page_title="Spielaufbau", layout="wide")
 st.title("Spielaufbau: Wie kommen wir von Zone 1 nach vorne?")
@@ -39,7 +39,7 @@ events = pd.read_parquet(folder / "events.parquet")
 matches = pd.read_csv(folder / "spiele.csv", encoding="utf-8-sig")
 
 # Alte Daten ohne die neuen Spalten erkennen
-if "inZone2" not in sequences.columns:
+if "inZone2" not in sequences.columns or "passDirection" not in events.columns:
     st.warning("Die Daten sind veraltet. Bitte die Pipeline für diese Mannschaft nochmals ausführen.")
     st.stop()
 
@@ -66,6 +66,11 @@ opacity = left.slider("Deckkraft der Heatmap", min_value=0.2, max_value=1.0, val
 what = right.radio("Was zählt?", ["Alle Ballaktionen", "Nur Pässe"], horizontal=True)
 heatmap = plot_activity_heatmap(events, squad, opacity=opacity, passes_only=what == "Nur Pässe")
 st.plotly_chart(heatmap, width="stretch", theme=None)
+
+# Alle Pässe als Pfeile (ohne Filter, damit man die ganze Menge sieht), Regler für die Deckkraft
+pass_opacity = st.slider("Deckkraft der Passpfeile", min_value=0.1, max_value=1.0, value=0.5, step=0.05)
+arrows = plot_pass_arrows(own_passes(events, squad), squad, opponent_name(events, squad), opacity=pass_opacity)
+st.plotly_chart(arrows, width="stretch", theme=None)
 
 # Grafiken (Titel stehen in der Grafik): Offensiv gegen Transition, dann links / Mitte / rechts
 st.pyplot(plot_buildup(sequences, squad))
