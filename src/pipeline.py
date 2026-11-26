@@ -51,14 +51,23 @@ def choose_impect(api) -> tuple[str, list[int]]:
 
 
 def match_info(raw: pd.DataFrame, squad: str) -> dict:
-    """Datum, Gegner und Heim/Auswärts eines Spiels."""
+    """Datum, Gegner, Heim/Auswärts und Resultat eines Spiels (aus Sicht der Mannschaft)."""
     first = raw.iloc[0]
     home = first.homeSquadName == squad
+
+    # Tore aus den Events: Tor zählt für das eigene Team, Eigentor für den Gegner (ohne Elfmeterschiessen)
+    goals = raw[raw.actionType.isin(["GOAL", "OWN_GOAL"]) & (raw.periodId != 5)]
+    own_team = goals.squadName == squad
+    scored = int(((goals.actionType == "GOAL") & own_team).sum() + ((goals.actionType == "OWN_GOAL") & ~own_team).sum())
+    conceded = int(len(goals) - scored)
+
     return {
         "Spiel": int(first.matchId),
         "Datum": str(first.dateTime)[:10],
         "Gegner": first.awaySquadName if home else first.homeSquadName,
         "Ort": "Heim" if home else "Auswärts",
+        "Resultat": f"{scored}:{conceded}",
+        "Ausgang": "Sieg" if scored > conceded else "Niederlage" if scored < conceded else "Unentschieden",
     }
 
 

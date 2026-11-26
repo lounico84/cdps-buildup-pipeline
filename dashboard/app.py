@@ -44,7 +44,9 @@ if "inZone2" not in sequences.columns:
     st.stop()
 
 # Auswahl in der Seitenleiste: alle Spiele oder ein einzelnes
-labels = ["Alle Spiele"] + [f"{row.Datum} gegen {row.Gegner} ({row.Ort})" for row in matches.itertuples()]
+# Resultat anzeigen, falls die Pipeline es schon berechnet hat (ältere Daten haben es nicht)
+result = matches.Resultat if "Resultat" in matches.columns else pd.Series("", index=matches.index)
+labels = ["Alle Spiele"] + [f"{row.Datum} gegen {row.Gegner} ({row.Ort}) {res}" for row, res in zip(matches.itertuples(), result)]
 choice = st.sidebar.selectbox("Spiel", labels)
 if choice != "Alle Spiele":
     match_id = matches.Spiel[labels.index(choice) - 1]
