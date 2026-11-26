@@ -19,3 +19,9 @@ PITCH_X_MIN = -52.5
 
 # pressure geht von 0 (kein Druck) bis 100 (keine Ballkontrolle).
 PRESSURE_THRESHOLD = 30
+
+# Kontrollierter Ballbesitz in einer Zone (Vorschlag, mit dem FC St. Gallen abstimmen):
+# mindestens so viele aufeinanderfolgende erfolgreiche Pässe ab dieser Zone (0 = Zone nur erreicht)
+POSSESSION_MIN_PASSES = 2
+# optional zusätzlich: Ball nach Ankunft mindestens so viele Sekunden behalten (None = keine Bedingung)
+POSSESSION_MIN_SECONDS = None
