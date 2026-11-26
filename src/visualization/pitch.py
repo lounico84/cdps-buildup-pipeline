@@ -42,7 +42,7 @@ def new_figure(ncols: int, title: str, subtitle: str, height: float = 6.4, top: 
     axes = list(axes) if ncols > 1 else [axes]
     fig.text(0.02, 0.97, title, fontsize=17, fontweight="bold", color=INK, va="top")
     fig.text(0.02, 0.97 - 0.38 / height, subtitle, fontsize=11, color=INK_SECONDARY, va="top")
-    fig.subplots_adjust(top=top, bottom=0.06, left=0.02, right=0.98, wspace=0.08)
+    fig.subplots_adjust(top=top, bottom=0.06, left=0.04, right=0.96, wspace=0.14)
     return fig, axes
 
 
@@ -61,17 +61,32 @@ def draw_zone_lines(ax: plt.Axes) -> None:
         ax.text(center, -36.5, f"Zone {zone + 1}", ha="center", va="top", fontsize=10, color=MUTED)
 
 
+def opponent_name(data: pd.DataFrame, squad: str) -> str:
+    """Name des Gegners, wenn es genau einen gibt (Einzelspiel), sonst "Gegner"."""
+    others = set(data.squadName.dropna()) - {squad}
+    return others.pop() if len(others) == 1 else "Gegner"
+
+
+def draw_teams(ax: plt.Axes, squad: str, opponent: str) -> None:
+    """Neben den Toren beschriften, wessen Tor es ist: eigenes Tor links, Tor des Gegners rechts."""
+    style = dict(ha="center", va="center", fontsize=9.5, color=INK_SECONDARY, linespacing=1.3, clip_on=False)
+    ax.text(-58.5, 0, f"{squad}\neigenes Tor", rotation=90, **style)
+    ax.text(58.5, 0, f"{opponent}\nTor des Gegners", rotation=270, **style)
+
+
 def plot_buildup(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     """Spielaufbau ab Zone 1: Wie viele Ballbesitze erreichen Zone 2 und Zone 3? Offensiv und Transition."""
     # Ballbesitze des Teams, die in Zone 1 beginnen
     zone1 = sequences[(sequences.squadName == squad) & (sequences.startZone == 1)]
 
     fig, axes = new_figure(2, "Wie weit kommen wir von Zone 1 aus?",
-                           f"{squad} | Anteil der Ballbesitze ab Zone 1, die Zone 2 und Zone 3 erreichen")
+                           f"{squad} | Anteil der Ballbesitze ab Zone 1, die Zone 2 und Zone 3 erreichen | Spielrichtung →")
+    opponent = opponent_name(sequences, squad)
 
     for ax, phase in zip(axes, ["IN_POSSESSION", "ATTACKING_TRANSITION"]):
         draw_pitch(ax)
         draw_zone_lines(ax)
+        draw_teams(ax, squad, opponent)
         part = zone1[zone1.phase == phase]
         panel_title(ax, PHASE_LABELS[phase], f"{len(part)} Ballbesitze ab Zone 1")
         if part.empty:
@@ -146,7 +161,8 @@ def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     in_zone2 = own[own.inZone2]
 
     fig, axes = new_figure(2, "Über welche Seite kommen wir nach vorne?",
-                           f"{squad} | Pfeildicke = Anteil der Versuche | Seite = wo der Versuch startet | eigenes Tor links")
+                           f"{squad} | Pfeildicke = Anteil der Versuche | Seite = wo der Versuch startet | Spielrichtung →")
+    opponent = opponent_name(sequences, squad)
     panels = [
         (axes[0], zone1, "exitSide", "exitSuccess", "exitDirectToZone3", -46, -21, "Raus aus Zone 1", "ohne Versuch nach vorne"),
         (axes[1], in_zone2, "zone3EntrySide", "zone3EntrySuccess", None, -4, 21, "Von Zone 2 in Zone 3", "ohne Versuch in Zone 3"),
@@ -154,6 +170,7 @@ def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     for ax, data, side_col, success_col, direct_col, x_start, x_end, title, missing in panels:
         draw_pitch(ax)
         draw_zone_lines(ax)
+        draw_teams(ax, squad, opponent)
         draw_side_arrows(ax, data, side_col, success_col, x_start, x_end, direct_col)
 
         # Titel mit Anzahl Ballbesitze und wie viele davon ohne Versuch
@@ -169,10 +186,11 @@ def plot_pressure_map(events: pd.DataFrame, squad: str) -> plt.Figure:
     pressured = events[(events.squadName == squad) & events.underPressure]
 
     fig, (ax,) = new_figure(1, "Wo kommen wir unter Druck?",
-                            f"{squad} | {len(pressured)} Aktionen unter Druck | Anteil pro Feld | eigenes Tor links",
+                            f"{squad} | {len(pressured)} Aktionen unter Druck | Anteil pro Feld | Spielrichtung →",
                             height=6.6, top=0.85)
     fig.set_size_inches(9, 6.6)
     pitch = draw_pitch(ax)
+    draw_teams(ax, squad, opponent_name(events, squad))
 
     # Anteil der Druck-Aktionen pro Feld (6 x 4 Felder), Lücke zwischen den Feldern in Flächenfarbe
     stats = pitch.bin_statistic(pressured.startAdjCoordinatesX, pressured.startAdjCoordinatesY, bins=(6, 4), normalize=True)

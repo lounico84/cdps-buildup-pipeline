@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from mplsoccer import Pitch
 
+from src.visualization.pitch import opponent_name
+
 # Masse des Impect-Spielfelds (Ursprung in der Mitte, 105 x 68 m)
 DIM = Pitch(pitch_type="impect").dim
 
@@ -84,10 +86,18 @@ def pitch_figure(height: int = 560) -> go.Figure:
         margin=dict(l=10, r=10, t=70, b=10),
         # Gleicher Massstab in x und y, Achsen ausblenden. constrain="domain": bei anderer Fenstergrösse
         # wird die Zeichenfläche angepasst, nicht der Ausschnitt (sonst wird das Feld winzig)
-        xaxis=dict(range=[DIM.left - 3, DIM.right + 3], visible=False, constrain="domain"),
+        # Links und rechts etwas mehr Platz für die Beschriftung der Tore
+        xaxis=dict(range=[DIM.left - 8, DIM.right + 8], visible=False, constrain="domain"),
         yaxis=dict(range=[DIM.bottom - 3, DIM.top + 3], visible=False, scaleanchor="x", scaleratio=1, constrain="domain"),
     )
     return fig
+
+
+def add_teams(fig: go.Figure, squad: str, opponent: str) -> None:
+    """Neben den Toren beschriften, wessen Tor es ist: eigenes Tor links, Tor des Gegners rechts."""
+    style = dict(xref="x", yref="y", y=0, showarrow=False, font=dict(size=12, color=INK_SECONDARY))
+    fig.add_annotation(x=DIM.left - 4.5, text=f"{squad}<br>eigenes Tor", textangle=-90, **style)
+    fig.add_annotation(x=DIM.right + 4.5, text=f"{opponent}<br>Tor des Gegners", textangle=90, **style)
 
 
 def zone_of(x: float) -> int:
@@ -120,11 +130,12 @@ def plot_activity_heatmap(events: pd.DataFrame, squad: str, opacity: float = 0.8
         text=hover, hovertemplate="%{text}<extra></extra>",
         texttemplate="%{z:.0%}", textfont=dict(size=13),
     ))
+    add_teams(fig, squad, opponent_name(events, squad))
 
     what = "Pässe" if passes_only else "Ballaktionen"
     fig.update_layout(title=dict(
         text=f"<b>Wo spielen wir?</b><br><span style='font-size:13px;color:{INK_SECONDARY}'>"
-             f"{squad} | {len(own)} {what} | Anteil pro Feld | eigenes Tor links</span>",
+             f"{squad} | {len(own)} {what} | Anteil pro Feld | Spielrichtung →</span>",
         x=0.01, xanchor="left", font=dict(size=18),
     ))
     return fig
