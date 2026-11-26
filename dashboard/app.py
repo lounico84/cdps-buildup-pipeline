@@ -14,6 +14,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config import DATA_PROCESSED
+from src.visualization.interactive import plot_activity_heatmap
 from src.visualization.pitch import plot_buildup, plot_sides
 
 st.set_page_config(page_title="Spielaufbau", layout="wide")
@@ -32,8 +33,9 @@ folder = DATA_PROCESSED / folder_name
 # Mannschaftsname = Ordnername mit Leerzeichen statt _
 squad = folder_name.replace("_", " ")
 
-# Ballbesitze und Spielliste laden
+# Ballbesitze, Events und Spielliste laden
 sequences = pd.read_parquet(folder / "sequences.parquet")
+events = pd.read_parquet(folder / "events.parquet")
 matches = pd.read_csv(folder / "spiele.csv", encoding="utf-8-sig")
 
 # Alte Daten ohne die neuen Spalten erkennen
@@ -47,6 +49,7 @@ choice = st.sidebar.selectbox("Spiel", labels)
 if choice != "Alle Spiele":
     match_id = matches.Spiel[labels.index(choice) - 1]
     sequences = sequences[sequences.matchId == match_id]
+    events = events[events.matchId == match_id]
 
 # Kennzahlen der eigenen Mannschaft: Ballbesitze ab Zone 1
 zone1 = sequences[(sequences.squadName == squad) & (sequences.startZone == 1)]
@@ -54,6 +57,13 @@ col1, col2, col3 = st.columns(3)
 col1.metric("Ballbesitze ab Zone 1", len(zone1))
 col2.metric("Zone 2 erreicht", f"{zone1.reachedZone2.mean():.0%}")
 col3.metric("Zone 3 erreicht", f"{zone1.reachedZone3.mean():.0%}")
+
+# Interaktive Heatmap (Plotly): Regler für Deckkraft und Art der Aktionen
+left, right = st.columns(2)
+opacity = left.slider("Deckkraft der Heatmap", min_value=0.2, max_value=1.0, value=0.85, step=0.05)
+what = right.radio("Was zählt?", ["Alle Ballaktionen", "Nur Pässe"], horizontal=True)
+heatmap = plot_activity_heatmap(events, squad, opacity=opacity, passes_only=what == "Nur Pässe")
+st.plotly_chart(heatmap, width="stretch", theme=None)
 
 # Grafiken (Titel stehen in der Grafik): Offensiv gegen Transition, dann links / Mitte / rechts
 st.pyplot(plot_buildup(sequences, squad))

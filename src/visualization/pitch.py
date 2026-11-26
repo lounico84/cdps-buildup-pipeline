@@ -67,7 +67,7 @@ def plot_buildup(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     zone1 = sequences[(sequences.squadName == squad) & (sequences.startZone == 1)]
 
     fig, axes = new_figure(2, "Wie weit kommen wir von Zone 1 aus?",
-                           f"{squad} · Anteil der Ballbesitze ab Zone 1, die Zone 2 und Zone 3 erreichen")
+                           f"{squad} | Anteil der Ballbesitze ab Zone 1, die Zone 2 und Zone 3 erreichen")
 
     for ax, phase in zip(axes, ["IN_POSSESSION", "ATTACKING_TRANSITION"]):
         draw_pitch(ax)
@@ -129,7 +129,7 @@ def draw_side_arrows(
         details += [f"{success:.0%} klappen", f"{part.reachedZone3.mean():.0%} danach in Zone 3"]
 
         backing = {"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.9, "pad": 1.5}
-        ax.text(x_end + 2, y + 2.2, f"{len(part)} Versuche · {share:.0%}", va="bottom", fontsize=11,
+        ax.text(x_end + 2, y + 2.2, f"{len(part)} Versuche | {share:.0%}", va="bottom", fontsize=11,
                 fontweight="bold", color=INK, zorder=4, bbox=backing)
         ax.text(x_end + 2, y + 1.6, "\n".join(details), va="top", fontsize=9.5, color=INK_SECONDARY,
                 linespacing=1.4, zorder=4, bbox=backing)
@@ -146,7 +146,7 @@ def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
     in_zone2 = own[own.inZone2]
 
     fig, axes = new_figure(2, "Über welche Seite kommen wir nach vorne?",
-                           f"{squad} · Pfeildicke = Anteil der Versuche · Seite = wo der Versuch startet · eigenes Tor links")
+                           f"{squad} | Pfeildicke = Anteil der Versuche | Seite = wo der Versuch startet | eigenes Tor links")
     panels = [
         (axes[0], zone1, "exitSide", "exitSuccess", "exitDirectToZone3", -46, -21, "Raus aus Zone 1", "ohne Versuch nach vorne"),
         (axes[1], in_zone2, "zone3EntrySide", "zone3EntrySuccess", None, -4, 21, "Von Zone 2 in Zone 3", "ohne Versuch in Zone 3"),
@@ -158,7 +158,7 @@ def plot_sides(sequences: pd.DataFrame, squad: str) -> plt.Figure:
 
         # Titel mit Anzahl Ballbesitze und wie viele davon ohne Versuch
         no_attempt = data[side_col].isna().sum()
-        panel_title(ax, title, f"{len(data)} Ballbesitze · {no_attempt} {missing}")
+        panel_title(ax, title, f"{len(data)} Ballbesitze | {no_attempt} {missing}")
 
     return fig
 
@@ -169,7 +169,7 @@ def plot_pressure_map(events: pd.DataFrame, squad: str) -> plt.Figure:
     pressured = events[(events.squadName == squad) & events.underPressure]
 
     fig, (ax,) = new_figure(1, "Wo kommen wir unter Druck?",
-                            f"{squad} · {len(pressured)} Aktionen unter Druck · Anteil pro Feld · eigenes Tor links",
+                            f"{squad} | {len(pressured)} Aktionen unter Druck | Anteil pro Feld | eigenes Tor links",
                             height=6.6, top=0.85)
     fig.set_size_inches(9, 6.6)
     pitch = draw_pitch(ax)

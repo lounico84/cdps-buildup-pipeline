@@ -1,6 +1,7 @@
 impectPy>=2.9
 mplsoccer
 pandas
+plotly
 pyarrow
 python-dotenv
 streamlit
