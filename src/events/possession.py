@@ -13,13 +13,17 @@ Definitionen (alle Werte sind Parameter, damit Varianten verglichen werden könn
   die Kontrolle übernimmt).
 """
 
+import numpy as np
 import pandas as pd
 
 from src.config import POSSESSION_MIN_PASSES, POSSESSION_MIN_SECONDS
 
 
-def control_in_zone(own: pd.DataFrame, zone: int, min_passes: int, min_seconds: float | None) -> tuple[bool, bool]:
-    """Für einen Ballbesitz: (Zone erreicht?, Zone kontrolliert?). own = eigene Aktionen in Reihenfolge."""
+def zone_stats(own: pd.DataFrame, zone: int) -> tuple[float, float]:
+    """Für einen Ballbesitz und eine Zone: (längste Pass-Serie nach Ankunft, Sekunden nach Ankunft).
+
+    own = eigene Aktionen in Reihenfolge. Wird die Zone nicht erreicht, sind beide Werte leer (NaN).
+    """
     own = own.reset_index(drop=True)
     success = own.result == "SUCCESS"
 
@@ -27,7 +31,7 @@ def control_in_zone(own: pd.DataFrame, zone: int, min_passes: int, min_seconds: 
     reached = own.startZone.where(~success, own[["startZone", "endZone"]].max(axis=1))
     hits = own.index[reached >= zone]
     if len(hits) == 0:
-        return False, False
+        return np.nan, np.nan
 
     # Ab der Ankunft zählen (kommt der Ball erst mit dieser Aktion an, zählt sie selbst nicht)
     arrival = hits[0]
@@ -41,13 +45,27 @@ def control_in_zone(own: pd.DataFrame, zone: int, min_passes: int, min_seconds: 
             best = max(best, streak)
         elif row.actionType == "DRIBBLE" and row.result == "FAIL":
             streak = 0
-    controlled = best >= min_passes
 
-    # Optional: Ball lange genug behalten
-    if min_seconds is not None:
-        controlled = controlled and (own.gameTimeInSec.iloc[-1] - own.gameTimeInSec[arrival] >= min_seconds)
+    # Wie lange hat das Team den Ball nach der Ankunft noch?
+    seconds = own.gameTimeInSec.iloc[-1] - own.gameTimeInSec[arrival]
+    return best, seconds
 
-    return True, controlled
+
+def control_stats(events: pd.DataFrame) -> pd.DataFrame:
+    """Pro Ballbesitz einmal rechnen: längste Pass-Serie und Sekunden nach Ankunft in Zone 2 und Zone 3.
+
+    Danach ist jede Definition nur noch ein Vergleich mit Schwellenwerten (schnell, auch für Schieberegler).
+    """
+    # Eigene Aktionen pro Ballbesitz (wie in build_sequences)
+    own = events[events.inPossession & events.startZone.notna()]
+
+    rows = []
+    for (match_id, sequence), group in own.groupby(["matchId", "sequenceIndex"]):
+        streak2, seconds2 = zone_stats(group, 2)
+        streak3, seconds3 = zone_stats(group, 3)
+        rows.append({"matchId": match_id, "sequenceIndex": int(sequence),
+                     "zone2Streak": streak2, "zone2Seconds": seconds2, "zone3Streak": streak3, "zone3Seconds": seconds3})
+    return pd.DataFrame(rows)
 
 
 def add_control(
@@ -55,22 +73,24 @@ def add_control(
     sequences: pd.DataFrame,
     min_passes: int = POSSESSION_MIN_PASSES,
     min_seconds: float | None = POSSESSION_MIN_SECONDS,
+    stats: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Ergänzt pro Ballbesitz, ob Zone 2 und Zone 3 kontrolliert erreicht wurden, und das Ergebnis ab Zone 1."""
-    # Eigene Aktionen pro Ballbesitz (wie in build_sequences)
-    own = events[events.inPossession & events.startZone.notna()]
+    """Ergänzt pro Ballbesitz, ob Zone 2 und Zone 3 kontrolliert erreicht wurden, und das Ergebnis ab Zone 1.
 
-    rows = []
-    for (match_id, sequence), group in own.groupby(["matchId", "sequenceIndex"]):
-        _, zone2 = control_in_zone(group, 2, min_passes, min_seconds)
-        _, zone3 = control_in_zone(group, 3, min_passes, min_seconds)
-        rows.append({"matchId": match_id, "sequenceIndex": int(sequence), "zone2Controlled": zone2, "zone3Controlled": zone3})
-    control = pd.DataFrame(rows)
+    stats: Ergebnis von control_stats() (optional, spart Zeit, wenn mehrere Definitionen verglichen werden).
+    """
+    if stats is None:
+        stats = control_stats(events)
 
     sequences = sequences.drop(columns=["zone2Controlled", "zone3Controlled", "zone1Outcome"], errors="ignore")
-    sequences = sequences.merge(control, on=["matchId", "sequenceIndex"], how="left")
-    for col in ["zone2Controlled", "zone3Controlled"]:
-        sequences[col] = sequences[col].fillna(False).astype(bool)
+    merged = sequences.merge(stats, on=["matchId", "sequenceIndex"], how="left")
+
+    # Kontrolliert: Zone erreicht und genug Pässe (und optional genug Zeit); nicht erreicht = leer = False
+    for zone in (2, 3):
+        controlled = merged[f"zone{zone}Streak"] >= min_passes
+        if min_seconds is not None:
+            controlled &= merged[f"zone{zone}Seconds"] >= min_seconds
+        sequences[f"zone{zone}Controlled"] = controlled.fillna(False).astype(bool).to_numpy()
 
     # Ergebnis für Ballbesitze ab Zone 1: bleibt drin, Raumgewinn ohne Kontrolle, kontrollierter Aufbau
     outcome = pd.Series(pd.NA, index=sequences.index, dtype="object")
