@@ -20,9 +20,13 @@ COLUMNS = [
     "startAdjCoordinatesY",
     "startPitchPosition",
     "startLane",
+    "endAdjCoordinatesX",
+    "endAdjCoordinatesY",
     "endPitchPosition",
     "endLane",
     "passDistance",
+    "passAngle",
+    "passReceiverType",
     "pressure",
     "pressingPlayerName",
 ]
@@ -34,7 +38,10 @@ NUMERIC = [
     "pressure",
     "startAdjCoordinatesX",
     "startAdjCoordinatesY",
+    "endAdjCoordinatesX",
+    "endAdjCoordinatesY",
     "passDistance",
+    "passAngle",
 ]
 
 # Events ohne Spielinhalt

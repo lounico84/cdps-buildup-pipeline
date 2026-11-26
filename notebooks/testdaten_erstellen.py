@@ -81,6 +81,9 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
             y_next = float(np.clip(y + rng.normal(0, 12 if kind != "dribble" else 4), -33, 33))
             distance = round(float(np.hypot(x_next - x, y_next - y)), 1)
 
+            # Passwinkel wie bei Impect: 0 Grad = nach vorne, 90 = nach links, 180 = zurück, 270 = nach rechts
+            angle = round(float(np.degrees(np.arctan2(y_next - y, x_next - x)) % 360), 1)
+
             # Letzter Pass geht verloren, die anderen kommen an
             last = number == n_passes - 1
 
@@ -109,6 +112,8 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
             end = {
                 "gameTimeInSec": time + 1.5,
                 "result": "FAIL" if last else "SUCCESS",
+                "endAdjCoordinatesX": round(x_next, 1),
+                "endAdjCoordinatesY": round(y_next, 1),
                 "endPitchPosition": pitch_position(x_next),
                 "endLane": lane(y_next),
             }
@@ -119,7 +124,9 @@ def make_match(seed: int = 1879) -> pd.DataFrame:
                 rows.append(base | end | {"actionType": "DRIBBLE", "action": "DRIBBLE"})
             else:
                 action = "CHIPPED_PASS" if kind == "long" else "LOW_PASS"
-                rows.append(base | end | {"actionType": "PASS", "action": action, "passDistance": distance})
+                receiver = "OPPONENT" if last else "TEAMMATE"
+                rows.append(base | end | {"actionType": "PASS", "action": action, "passDistance": distance,
+                                          "passAngle": angle, "passReceiverType": receiver})
 
             x, y = x_next, y_next
             time += 3.0
